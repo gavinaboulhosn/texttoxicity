@@ -1,6 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
+from keras.preprocessing.text import Tokenizer
 from keras.models import Sequential
 from keras import layers
 from base import *
@@ -123,13 +124,26 @@ def first_keras():
 
 
 def cnn():
+    plots = []
     for source in df["source"].unique():
         (_, sentences, y) = extract(df, source)
-        (x_train, x_test, y_train, y_test) = get_train_and_test(sentences, y)
+        sentences_train, sentences_test, y_train, y_test = train_test_split(
+            sentences, y, test_size=.25, random_state=1000
+        )
 
+        tokenizer = Tokenizer(num_words=5000)
+        tokenizer.fit_on_texts(sentences_train)
+
+        x_train = tokenizer.texts_to_sequences(sentences_train)
+        x_test = tokenizer.texts_to_sequences(sentences_test)
+
+        vocab_size = len(tokenizer.word_index) + 1
+        maxlen = 100
         embedding_dim = 100
+
         model = Sequential()
-        model.add(layers.Embedding(vocab_size, embedding_dim, input_length=maxlen))
+        model.add(layers.Embedding(
+            vocab_size, embedding_dim, input_length=maxlen))
         model.add(layers.Conv1D(128, 5, activation="relu"))
         model.add(layers.GlobalMaxPooling1D())
         model.add(layers.Dense(10, activation="relu"))
@@ -139,6 +153,18 @@ def cnn():
         )
         model.summary()
 
+        history = model.fit(x_train, y_train, epochs=10, verbose=False,
+                            validation_data=(x_test, y_test), batch_size=10)
+        loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
+        print("Training Accuracy: {:.4f}".format(accuracy))
+        loss, accuracy = model.evaluate(x_test, y_test, verbose=False)
+        print("Testing Accuracy:  {:.4f}".format(accuracy))
+        plt = plot_history(history, source)
+        plots.add(plt)
+
+    for plot in plots:
+        plot.show()
+
 
 if __name__ == "__main__":
-    first_keras()
+    cnn()
